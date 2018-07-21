@@ -9,5 +9,8 @@ before_install:
   - sudo apt-get update
   - sudo apt-get install libfftw3-dev
 
+install:
+  - echo "No install needed"
+  
 script: 
-  R --vanilla -e 'rmarkdown::render("./using-spatialwarnings.Rmd")'
+  - R --vanilla -e 'rmarkdown::render("./using-spatialwarnings.Rmd")'
