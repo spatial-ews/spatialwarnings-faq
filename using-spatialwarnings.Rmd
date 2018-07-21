@@ -36,7 +36,7 @@ knitr::opts_chunk$set(
 options(repos = "https://cloud.r-project.org")
 
 pkgs <- c('spatialwarnings', 'tiff', 'png', 'gridExtra', "acss", 'raster', 
-          "ggplot2", "plyr", "tidyr")
+          "ggplot2", "plyr", "tidyr", 'rgdal')
 install.packages(pkgs)
 # EBImage can be installed from Bioconductor repositories: 
 # https://www.bioconductor.org/packages/release/bioc/html/EBImage.html
