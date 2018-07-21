@@ -35,7 +35,8 @@ knitr::opts_chunk$set(
 # Install some packages which are needed by this vignette
 options(repos = "https://cloud.r-project.org")
 
-pkgs <- c('spatialwarnings', 'tiff', 'png', 'gridExtra', "acss")
+pkgs <- c('spatialwarnings', 'tiff', 'png', 'gridExtra', "acss", 'raster', 
+          "ggplot2", "plyr", "tidyr")
 install.packages(pkgs)
 # EBImage can be installed from Bioconductor repositories: 
 # https://www.bioconductor.org/packages/release/bioc/html/EBImage.html
@@ -175,8 +176,6 @@ each individual band of `\raster` objects can be extracted as a matrix. These
 matrices can be then used in 'spatialwarnings'. An example is provided below: 
 
 ```{r raster_objs}
-# Load packages
-library(raster)
 
 # It makes no sense computing indicators on those images, they just are
 # example geotiffs
@@ -221,11 +220,6 @@ section, we contrast two images to show how the r-spectrum can be used to
 highlight periodicity (or its absence). 
 
 ```{r computation}
-
-# Load packages
-library(png)     # image-reading package
-library(ggplot2) # plotting 
-library(spatialwarnings)
 
 # Read images
 image_periodic <- readPNG('./patterned_bush_niger.png')
@@ -376,11 +370,6 @@ the red a near-infrared bands of a multi-band image.
 We first load the required packages and read the image in R. 
 
 ```{r pkgs}
-library(png) # Read PNG images as arrays
-library(plyr) # Manipulate data.frames
-library(tidyr) # Manipulate data.frames
-library(ggplot2) # Make plots
-library(spatialwarnings) 
 
 # Read image
 datadir <- "../figs/images/"
