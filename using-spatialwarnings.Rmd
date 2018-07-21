@@ -17,8 +17,8 @@ is through our freely-available
 package. The purpose of this document is to answer more advanced questions 
 and/or issues that came up and are related to the computation of indicators. 
 
-This document assumes some familiarity with the basic functions of the package, 
-and basic familiarity with R code.
+This document assumes some familiarity with the basic functions of the package
+and with R code in general. 
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(
@@ -29,27 +29,20 @@ knitr::opts_chunk$set(
   fig.height = 6, 
   out.width = "700px"
 )
-```
-
-```{r spw_setup}
-library(spatialwarnings)
-# Setup parallel computing 
-options(mc.cores = 4)
 
 # Install some packages which are needed by this vignette
 options(repos = "https://cloud.r-project.org")
-if ( ! require(tiff) ) { 
-  install.packages('tiff') 
-  library(tiff)
-} 
-if ( ! require(png) ) { 
-  install.packages('png') 
-  library(png)
-} 
-if ( ! require(gridExtra) ) { 
-  install.packages('gridExtra') 
-  library(gridExtra)
-} 
+
+install.packages(c('spatialwarnings', 'tiff', 'png', 'gridExtra'))
+
+# Load spatialwarnings and setup parallel computing
+library(spatialwarnings)
+options(mc.cores = 4)
+
+library(tiff)
+library(png)
+library(gridExtra)
+
 # EBImage can be installed from Bioconductor repositories: 
 # https://www.bioconductor.org/packages/release/bioc/html/EBImage.html
 if ( ! require(EBImage) ) { 
