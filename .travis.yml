@@ -10,7 +10,7 @@ before_install:
   - sudo apt-get install libfftw3-dev
 
 install:
-  - R -e 'install.packages("rmarkdown")'
+  - R -e 'install.packages("rmarkdown", repos = "https://cloud.r-project.org")'
   
 script: 
   - R -e 'rmarkdown::render("./using-spatialwarnings.Rmd")'
