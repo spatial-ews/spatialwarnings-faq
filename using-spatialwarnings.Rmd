@@ -18,7 +18,9 @@ package. The purpose of this document is to answer more advanced questions
 and/or issues that came up and are related to the computation of indicators. 
 
 This document assumes some familiarity with the basic functions of the package
-and with R code in general. 
+and with R code in general. All the required files and source code needed 
+to build this document are available 
+[there](https://github.com/spatial-ews/spatialwarnings-faq).
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(
@@ -33,16 +35,8 @@ knitr::opts_chunk$set(
 # Install some packages which are needed by this vignette
 options(repos = "https://cloud.r-project.org")
 
-install.packages(c('spatialwarnings', 'tiff', 'png', 'gridExtra'))
-
-# Load spatialwarnings and setup parallel computing
-library(spatialwarnings)
-options(mc.cores = 4)
-
-library(tiff)
-library(png)
-library(gridExtra)
-
+pkgs <- c('spatialwarnings', 'tiff', 'png', 'gridExtra', "acss")
+install.packages(pkgs)
 # EBImage can be installed from Bioconductor repositories: 
 # https://www.bioconductor.org/packages/release/bioc/html/EBImage.html
 if ( ! require(EBImage) ) { 
@@ -50,6 +44,18 @@ if ( ! require(EBImage) ) {
   biocLite("EBImage", suppressUpdates = TRUE)
   library(EBImage)
 }
+```
+
+
+```{r package_loading}
+
+for (pkg in pkgs) { 
+  cat('Loading required package', pkg, '\n')
+  library(pkg, character.only = TRUE)
+}
+
+# Setup parallel computing
+options(mc.cores = 4)
 
 ```
 
