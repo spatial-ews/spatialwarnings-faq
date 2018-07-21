@@ -55,7 +55,7 @@ for (pkg in pkgs) {
 }
 
 # Setup parallel computing
-options(mc.cores = 4)
+options(mc.cores = 2)
 
 ```
 

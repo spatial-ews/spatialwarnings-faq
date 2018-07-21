@@ -13,4 +13,4 @@ install:
   - R -e 'install.packages("rmarkdown", repos = "https://cloud.r-project.org")'
   
 script: 
-  - R -e 'rmarkdown::render("./using-spatialwarnings.Rmd")'
+  - travis_wait 30 R -e 'rmarkdown::render("./using-spatialwarnings.Rmd")'
