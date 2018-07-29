@@ -72,7 +72,7 @@ depends on the meaning of those `NA`s.
 
 If the matrix is has continuous values, then `NA`s generally represent
 missing measurements. In this case, interpolation may be an option, but
-computing indicators on interpolated data may be very dangerous
+computing indicators on interpolated data may be lead to wrong conclusions
 (because it increases autocorrelation in the data, which is by itself
 an indicator !), see e.g.
 [this blog post](https://www.fromthebottomoftheheap.net/2013/07/16/flickering-diatoms/).
