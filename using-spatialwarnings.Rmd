@@ -35,17 +35,25 @@ knitr::opts_chunk$set(
 # Install some packages which are needed by this vignette
 options(repos = "https://cloud.r-project.org")
 
+# Install required packages
 pkgs <- c('tiff', 'png', 'gridExtra', "acss", 'raster',
-          "ggplot2", "plyr", "tidyr", 'rgdal')
+          "ggplot2", "plyr", "tidyr", 'rgdal', 'devtools')
+for (p in pkgs) { 
+  if ( ! require(p, char = TRUE) ) { 
+    install.packages(pkgs)
+    require(p, char = TRUE)
+  }
+}
+
+# Install spatialwarnings
+devtools::install_github("spatial-ews/spatialwarnings")
+
 # EBImage can be installed from Bioconductor repositories:
 # https://www.bioconductor.org/packages/release/bioc/html/EBImage.html
 if ( ! require(EBImage) ) {
   install.packages("BiocManager")
   BiocManager::install("EBImage", suppressUpdates = TRUE)
   library(EBImage)
-}
-for (p in pkgs) { 
-  stopifnot(require(p, char = TRUE))
 }
 
 ```
