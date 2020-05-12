@@ -1,30 +1,28 @@
 ---
-title: "'spatialwarnings' FAQ"
-author: "Alexandre Génin"
+title: "spatialwarnings - User Guide"
 date: "`r Sys.Date()`"
 output:
   html_document:
     toc: true
     toc_float: true
+    toc_collapsed: false 
     code_folding: show
 ---
 
-# What is this document ?
-
-The best way to get a quick introduction to the package 'spatialwarnings'
+The best way to get an introduction to the package 'spatialwarnings'
 is through our freely-available
 [paper](https://besjournals.onlinelibrary.wiley.com/doi/abs/10.1111/2041-210X.13058),
-which describes the scientific background of the indicators and how they can be
-computed with the package. The purpose of this document is to answer more
-advanced questions and/or issues that came up and are related to the
-computation of indicators.
+which describes the scientific background behind early-warning signals, and how 
+they can be computed with the package. The purpose of this document is to 
+provide a more technical introduction, and answer more advanced 
+questions/issues. Please note that if you make a significant use of our package 
+in your work, we would appreciate that you cite the above paper. 
 
-This document assumes some familiarity with the basic functions of the package
-and with R code in general. All the required files and source code needed
-to build this document are available
+This document assumes some basic familiarity with R code. All the required 
+files and source code needed to build this document are available 
 [there](https://github.com/spatial-ews/spatialwarnings-faq).
 
-```{r setup, include = FALSE}
+```{r setup, include = FALSE, message = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
@@ -37,38 +35,180 @@ knitr::opts_chunk$set(
 # Install some packages which are needed by this vignette
 options(repos = "https://cloud.r-project.org")
 
-pkgs <- c('spatialwarnings', 'tiff', 'png', 'gridExtra', "acss", 'raster',
+pkgs <- c('tiff', 'png', 'gridExtra', "acss", 'raster',
           "ggplot2", "plyr", "tidyr", 'rgdal')
-install.packages(pkgs)
 # EBImage can be installed from Bioconductor repositories:
 # https://www.bioconductor.org/packages/release/bioc/html/EBImage.html
 if ( ! require(EBImage) ) {
-  source("https://bioconductor.org/biocLite.R")
-  biocLite("EBImage", suppressUpdates = TRUE)
+  install.packages("BiocManager")
+  BiocManager::install("EBImage", suppressUpdates = TRUE)
   library(EBImage)
 }
-```
-
-
-```{r package_loading}
-
-for (pkg in pkgs) {
-  cat('Loading required package', pkg, '\n')
-  library(pkg, character.only = TRUE)
+for (p in pkgs) { 
+  stopifnot(require(p, char = TRUE))
 }
 
-# Setup parallel computing
-options(mc.cores = 2)
+```
+
+
+
+
+
+# A 5-minutes introduction to `spatialwarnings`
+
+As ecological systems degrade along gradients, several "Early-Warning signals" 
+have been suggested in the literature to monitor such degradation. In practice, 
+they are indicators that measure a property of an ecological system, whose trend is expected to change before an abrupt shift in ecosystem condition along a gradient (or in time). For example, the spatial variability (e.g. variation in vegetation cover) of a given ecosystem is expected to rise before some regime shifts. 
+
+A variety of such spatial indicators have been suggested in the 
+literature: the package `spatialwarnings` focuses on computing spatial 
+indicators, i.e. those that are based on measures of spatial characteristics of 
+an ecosystem. As a result the base type of data used by `spatialwarnings` are 
+matrices (2D arrays of numbers), that typically come from raster data (e.g. 
+aerial images). For example, using the package, we can compute the spatial 
+variance of the following matrix: 
+
+```{r autocorr_example, fig.width = 6, fig.height = 6}
+
+# Load the package and enable parallel processing
+# library(spatialwarnings) 
+plan(multicore)
+
+data(serengeti) # get more information on this dataset by using ?serengeti
+
+# Extract and display matrix from one of the example datasets
+example_matrix <- serengeti[[1]]
+display_matrix(example_matrix)
+
+# This function returns the coarse-grained spatial variance when fed a matrix.
+# See ?raw_cg_variance for more details about its computation.
+raw_cg_variance(example_matrix)
+
+```
+
+When working with indicators, we are often interested in their change along a 
+gradient rather than in a single value. A typical use-case is having several 
+aerial images (matrices), each corresponding to a given location on a gradient. 
+`spatialwarnings` provides all of what is needed for such case. By storing 
+matrices in a list, indicators can be computed on all of them at once: 
+
+```{r compute_set, fig.width = 6, fig.height = 6}
+trend <- compute_indicator(serengeti, raw_cg_variance)
+trend
+```
+
+The package has computed the indicator value for all matrices and displayed a 
+textual summary. We can now plot the trend along the gradient by calling the 
+generic function `plot()` on the returned object. Here the example dataset is 
+along a gradient of increasing rainfall, so we will use the rainfall values as our x-axis in a trend plot: 
+
+```{r plot_trend}
+plot(trend, along = serengeti.rain) 
+```
+
+Because the tree cover changes along the gradient, this may affect the indicator trends, which may then not reflect the proximity to the shift, but rather changes in cover. Using `spatialwarnings`, we whether the indicator values deviate from their null expectation (i.e. their expected value given the vegation cover). This is done by randomizing the spatial structure of the matrix, and recomputing indicator values on such matrix: 
+
+```{r compute_null}
+variance_test <- indictest(trend)
+variance_test
+```
+
+Here all observed values of spatial variance are above their null distribution 
+(P-value indistiguishable from zero). Again, we can plot trends and investigate 
+how these null values compare to the indicator trends: 
+
+```{r plot_null}
+plot(variance_test)
+```
+
+The grey ribbon indicates the 0.05/0.95 quantiles of the null distribution (it 
+shows up as a thin line on the graph). 
+
+`spatialwarnings` allows computing indicators following such three-step 
+workflow. For convenience, some indicators are also available 'umbrella' 
+functions. For example, the spatial variance above is part of the so-called 
+"generic indicators", which also comprise spatial autocorrelation and skewness. 
+We can compute and display all of them at once using the `generic_sews` 
+function: 
+
+```{r allatonce}
+
+generic_trend <- generic_sews(serengeti)
+
+# Here we adjust and annotate the plot using ggplot2 directives 
+plot(generic_trend, along = serengeti.rain) + 
+  geom_vline(xintercept = 733, color = "red", linetype = "dashed") +
+  labs(x = "Annual rainfall",
+       y = "Mean cover/indicator value",
+       title = paste("Early warning signals of a shift in tree cover in", 
+                     "Serengeti, Tanzania (Eby et al. 2016)"), 
+       subtitle = paste("Grey ribbons indicate the 5-95% quantiles of the null", 
+                        "distribution"))
 
 ```
 
 
 
-# How can I deal with `NA`s in the data ?
 
-Put simply, there is no single way to deal with missing values, this is why it's
-up to the user of the package to deal with those before computing indicators. It
-depends on the meaning of those `NA`s.
+
+# What indicators are available in `spatialwarnings`? 
+
+`spatialwarnings` implements the following indicators found in the literature: 
+
+  - lag-1 autocorrelation (Moran's I, Dakos et al. 2010)
+  - Variance (Guttal et al. 2008)
+  - Skewness (Guttal et al. 2008)
+  - SDR Ratio (Kéfi et al. 2014)
+  - Patch-size distribution shape (Kéfi et al. 2011)
+  - Power-law range (Berdugo et al. 2017)
+  - Flowlength (Rodriguez et al. 2017)
+  - Kolmogorov complexity (Dakos et al. 2017)
+<!--   - Variogram-based indicators (Nijp et al. 2019) -->
+
+Do not hesitate to get in touch through [Github](https://github.com/spatial-ews/spatialwarnings) if you want to see this list grow ! 
+
+
+
+
+
+# What do the reported P-values mean? 
+
+The choice made in `spatialwarnings` is to report P-values that are low when the indicator value is above the null distribution. This is motivated by the
+fact that most indicators tend to have increasing values near a possible
+transition. For example, a P-value of 0.01 means that the observed indicator
+value is above 99% of the values observed in the null distribution. 
+
+However, using this convention means that indicators which are expected to show 
+significant deviation when below their corresponding null distribution will show apparently non-significant P-values (i.e. close to one). 
+
+
+
+
+
+# spatialwarnings is slow ! 
+
+While a best effort is made to make `spatialwarnings` as fast as possible, it 
+relies heavily on permutating matrices and recomputing indicators, which can 
+take a while to compute on personal computers. You can enable parallel processing to alleviate this. In that case, when computing indicators on lists
+of matrices, `spatialwarnings` will use one core per matrix. Parallel
+processing can be enabled using the function `plan()` (provided by the 
+[future](https://cran.r-project.org/package=future) framework): 
+
+```{r parallel}
+plan(multisession)
+```
+
+Note that the `future` package provides many other ways to parallelize 
+computations (e.g. across multiple computers in a cluster). For more 
+information, please refer to the [official manual](https://cran.r-project.org/web/packages/future/vignettes/future-1-overview.html).
+
+
+
+
+
+# How can I deal with `NA`s in the data?
+
+Put simply, there is no single way to deal with missing values, this is why it's up to the user of the package to deal with those before computing indicators. It depends on the meaning of those `NA`s.
 
 If the matrix is has continuous values, then `NA`s generally represent
 missing measurements. In this case, interpolation may be an option, but
@@ -77,11 +217,9 @@ computing indicators on interpolated data may be lead to wrong conclusions
 an indicator !), see e.g.
 [this blog post](https://www.fromthebottomoftheheap.net/2013/07/16/flickering-diatoms/).
 
-If the matrix has discrete (TRUE/FALSE) values, then `NA`s may represent either (i)
-missing measurements, and in this case you are in the same boat as above or (ii)
-a pixel that has been observed, but where the value represents the non-focal
-state (i.e. what should be in fact, a FALSE value). In this case, it
-should be safe to replace the `NA`s in the matrix by FALSE values.
+If the matrix has discrete (TRUE/FALSE) values, then `NA`s may represent either 
+(i) missing measurements, and in this case you are in the above case or (ii) a 
+pixel that has been observed, but where the value represents the non-focal state (i.e. what should be in fact, a FALSE value). In this case, it should be safe to replace the `NA`s in the matrix by FALSE values.
 
 For example, a matrix could contain `TRUE` values where the pixel contains a
 given cover of forest and `NA` if it contains any other thing
@@ -90,102 +228,95 @@ of forest patches, then it should be safe to replace those `NA`s by FALSE
 values and compute indicators.
 
 
-# How can I add another indicator ?
 
-'spatialwarnings' provides the function `create_indicator`, which allows the
-user to define new indicators, and use them as if they
-were `*_sews` functions (and thus benefit from significance testing, plotting
-functions, etc.).
+
+
+# How can I add another indicator?
+
+'spatialwarnings' provides the function `create_indicator`, which allows the 
+user to define new indicators, and use them as if they were `*_sews` functions 
+(and thus benefit from significance testing, plotting functions, etc.).
 
 The process is in two steps, we first define in R a function that computes the
 metric. This function should take a matrix as input, and return a single,
-numerical value. Here, we define a function that returns an approximation of
-the Kolmogorov complexity of a given matrix. This indicator has been
-suggested by Dakos et al. (2017) (references are at the bottom of this
-document).
+numerical value. Here, we define a function that returns the maximum patch 
+size in a matrix. 
 
 
 ```{r custom_indic}
-
 # This function takes a matrix and a returns a single value.
-get_kbdm <- function(mat) {
-  require(acss)
-  require(magrittr)
-
-  # Split matrix
-  subsize <- 3
-  xs <- seq(1, nrow(mat), by = subsize)
-  ys <- seq(1, ncol(mat), by = subsize)
-  allblockns <- expand.grid(seq.int(length(xs)-1),
-                            seq.int(length(ys)-1))
-  all_substr <- Map(function(xblockn, yblockn) {
-                         as.vector(mat[xs[xblockn]:(xs[xblockn+1]-1),
-                                       ys[yblockn]:(ys[yblockn+1]-1)]) %>%
-                          as.integer() %>%
-                          paste(collapse = "")
-                         },
-                    allblockns[ ,1], allblockns[ ,2]) %>% unlist
-  # Summarize the substrings
-  counts <- table(all_substr)
-  counts <- data.frame(string = names(counts),
-                       multip = as.vector(counts),
-                       kctm = acss(names(counts), alphabet = 2)[ ,1])
-
-  # Compute Kbdm
-  return( with(counts, sum(log2(multip) + kctm)) )
+get_maxpatchsize <- function(mat) {
+  c(maxpatchsize = max(patchsizes(mat)))
 }
-
-
 ```
 
-We then create an "indicator function" using the first function. This
+We then create an "indicator function" using the above function. This
 indicator function can then be used as any other function from the `*_sews`
 family. You just define how the metric is derived from data, 'spatialwarnings'
 handles all the significance-testing and plotting automatically.
 
 ```{r custom_indic_func}
-
 # Create the indicator function
-kbdm_sews <- create_indicator(get_kbdm)
+maxpatchsize_sews <- create_indicator(get_maxpatchsize)
 
 # Apply this function on the serengeti dataset. We reduce the number of
-# permutations when testing significance because this indicator takes quite
-# some time to be computed.
-kbdm_indic <- kbdm_sews(serengeti)
-kbdm_indic <- indictest(kbdm_indic, nperm = 49)
+# permutations when testing significance to speed up computations. 
+maxpatch_indic <- maxpatchsize_sews(serengeti)
+maxpatch_indic <- indictest(maxpatch_indic, nulln = 99)
 
 # Display the trends
-plot(kbdm_indic, along = serengeti.rain)
+plot(maxpatch_indic, along = serengeti.rain)
 
 # Display text-based summary
-summary(kbdm_indic)
+summary(maxpatch_indic)
 
 ```
 
-If you want to distribute your new indicator with the package, do not
+You can also do this on the fly with the function `compute_indicator()`, 
+which produces the same output without creating an intermediary function: 
+
+```{r compute_indic}
+
+maxpatch_indic <- compute_indicator(serengeti, get_maxpatchsize)
+plot(maxpatch_indic, along = serengeti.rain)
+
+```
+
+If you want to distribute a new indicator with the package, do not
 hesitate to open a new topic on our
-[Github](https://github.com/spatial-ews/spatialwarnings/issues) tracker
-page !
+[Github](https://github.com/spatial-ews/spatialwarnings/issues) tracker!
 
 
-# Can I use `Raster{Layer,Stack,Brick}` objects with 'spatialwarnings' ?
 
-`Raster*` objects are used by the package `\raster` to encapsulate raster
-data, for example data read from Geotiff images. These objects can contain
-a single band (`RasterLayer` objects) or multiple bands
-(`RasterStack`/`RasterBrick` objects). Each band of a raster objects is,
-by definition, a matrix of values.
 
-Right now, 'spatialwarnings' can not use `Raster` objects directly, but
-each individual band of `\raster` objects can be extracted as a matrix. These
-matrices can be then used in 'spatialwarnings'. An example is provided below:
+
+# Can I use `Raster*` objects with 'spatialwarnings'?
+
+`Raster*` objects are used by the package `raster` to encapsulate raster data, 
+for example data read from Geotiff images. These objects can contain a single 
+band (`RasterLayer` objects, with one value per pixel) or multiple bands 
+(`RasterStack`/`RasterBrick` objects, with several values per pixel). Each band 
+of a raster object is, by definition, a matrix of values.
+
+Base `spatialwarnings` cannot use `RasterLayer` objects directly, but a 
+companion package `spatialwarningsGis` (available [there](https://github.com/spatial-ews/spatialwarningsGis)) provides extensions to work with these 
+objects. You can install the package using devtools: 
+
+```{r install_GIS_exts}
+devtools::install_github('spatial-ews/spatialwarningsGis')
+library(spatialwarningsGis)
+```
+
+You can now use raster objects transparently with `spatialwarnings`, they will 
+be converted to matrices internally and without extra work for the user. A workflow with `RasterLayer` object could then look like the following: 
 
 ```{r raster_objs}
 
 # It makes no sense computing indicators on those images, they just are
 # example geotiffs
-example_files <- c("https://download.osgeo.org/geotiff/samples/spot/chicago/SP27GTIF.TIF",
-  "https://download.osgeo.org/geotiff/samples/spot/chicago/UTM2GTIF.TIF")
+example_files <- 
+  paste0("https://download.osgeo.org/geotiff/samples/spot/chicago/", 
+         c("SP27GTIF.TIF","UTM2GTIF.TIF"))
 
 # Read the list of files using functions from the package 'raster'
 list_of_raster_objects <- lapply(example_files, function(f) {
@@ -194,34 +325,34 @@ list_of_raster_objects <- lapply(example_files, function(f) {
   raster(tmpfile)
 })
 
-# Convert those to matrices
-list_of_matrices_objects <- lapply(list_of_raster_objects, as.matrix)
-
 # ...and use them in spatialwarnings
-generic_sews(list_of_matrices_objects)
+generic_sews(list_of_raster_objects)
 
 ```
 
-Of course, right now some metadata of the raster objects is lost in the process
+Right now some metadata of the raster objects is lost in the process
 (extent, resolution, etc.). This information could be used by 'spatialwarnings'
 in a future release to adjust output (for example, adjust distance units when
 displaying the r-spectrum).
 
-Multi-band rasters (`RasterStack`/`RasterBrick` objects) can also be converted
-to arrays (by using `as.array`). These arrays can then be summarized and/or
-classified (see below) to get a matrix that can be used in 'spatialwarnings'.
+Please note that `spatialwarnings` will not use the multi-band objects 
+`RasterStack`/`RasterBrick` as the implemented indicators only work with 
+univariate values. It is unknown which band should be picked in multi-band 
+objects to compute the indicators. You need to extract `RasterLayer`s from these objects first, then use `spatialwarnings`
+
+Additional support for other GIS formats representing raster data will be added
+to `spatialwarningsGis`. 
 
 
 
 
 
-# How can I identify the periodicity in data ?
+# How can I identify the periodicity in data?
 
-EWS available in \texttt{spatialwarnings} assume that stress does not affect the
-periodicity of the spatial structure, as changes in periodicity may mask mask of
-alter trends in indicator values. Before computing the EWS, it is therefore
-needed to check for any possible periodicity in the input data. In this
-section, we contrast two images to show how the r-spectrum can be used to
+EWS available in `spatialwarnings` assume that stress does not affect the 
+periodicity of the spatial structure, as changes in periodicity may mask or 
+alter trends in indicator values. Before computing the EWS, it is therefore 
+needed to check for any possible periodicity in the input data. In this section, we contrast two images to show how the r-spectrum can be used to
 highlight periodicity (or its absence).
 
 ```{r computation}
@@ -277,8 +408,7 @@ scale_y <- scale_y_continuous(trans = "log10",
 
 The periodic image below (tiger bush in Niger [^1]) displays a typical banded
 regular pattern (a). Its scale (in number of pixels) is reflected by a hump in
-the r-spectrum around a size of ~ 15px (b). This corresponds to the width of one
-vegetation band in the image (~30m in reality).
+the r-spectrum around a size of ~ 15px (b). This corresponds to the width of one vegetation band in the image (~30m in reality).
 
 [^1]: https://www.google.com/maps/place/12%C2%B030'47.3%22N+3%C2%B000'49.9%22E/@12.5131562,3.0116833,905m/data=!3m2!1e3!4b1!4m5!3m4!1s0x0:0x0!8m2!3d12.513151!4d3.013872?hl=en]
 
@@ -306,13 +436,13 @@ gridExtra::grid.arrange(img, rsp, ncol = 2)
 
 ```
 
-This image displays strong periodicity and the indicators in
-\texttt{spatialwarnings} should be used with care to draw conclusions from it.
+This image displays strong periodicity and the indicators in `spatialwarnings`
+should be used with care to draw conclusions from it.
 
-In contrast, an aperiodic image displays no such hump in its r-spectrum. The
-image below (c, arid grassland in Spain) is aperiodic, as shown by the
-decreasing r-spectrum (d). Indicators available in
-\texttt{spatialwarnings} may (in principle) be used on this image.
+In contrast, an aperiodic image displays no such hump in its r-spectrum. The 
+image below (c, arid grassland in Spain) is aperiodic, as shown by the 
+decreasing r-spectrum (d). Indicators available in `spatialwarnings` may (in 
+principle) be used on this image.
 
 ```{r display_nonperiodic, fig.width = 12, fig.height = 6}
 
@@ -340,35 +470,37 @@ gridExtra::grid.arrange(img, rsp, ncol = 2)
 
 
 
+
+
 # Converting multi-band images
 
-Raster images from remote sensing often come with multiple bands, because
-of the way images are stored digitally (e.g. red/blue/green bands), but also
+Raster images from remote sensing often come with multiple bands, because of
+the way images are stored digitally (e.g. red/blue/green bands), but also
 because multiple sensors can be used to capture a single image (e.g. a
-combination of visible/near-infrared sensors). These images are often represented
-as arrays in R (matrices that are extended with a third dimension, "depth").
+combination of visible/near-infrared sensors). These images are often
+represented as arrays in R (matrices that are extended with a third dimension,
+"depth").
 
 As `spatialwarnings` computes indicators on `matrix` objects, these arrays need
 to be first transformed into matrices (effectively arrays with no depth). This
-entails summarizing the multi-dimensional data of each pixel to a single value.
+requires collapsing the multi-dimensional data of each pixel to a single value.
 In addition, some indicators (e.g. patch-based indicators) rely on classified,
 `TRUE/FALSE` data that defines which pixels belong to a patch and which do not.
-Again, the classification algorithm employed is likely to be very
-system-dependent, but we provide a possible example below.
+The classification algorithm employed is likely to be very system-dependent,
+but we provide a possible example below.
 
-In what follows, we use a case-study to show how to carry these two processes
-and apply the `spatialwarnings` package on images. Using an aerial image
-stored as an R/G/B PNG image, we classify each pixel as vegetated/non-vegetated
-or summarize the multi-channel pixel values to a single value. We then apply the
-indicators on the resulting transformed matrix.
+In what follows, we use a small example to show how to carry these two
+processes and apply the `spatialwarnings` package on images. Using an aerial
+image stored as an R/G/B PNG image, we classify each pixel as 
+vegetated/non-vegetated or summarize the multi-channel pixel values to a 
+single value. We then apply the indicators on the resulting matrix.
 
-Note that in many cases, other methods can be used to derive univariate indices
-from remote sensing data that may be more appropriate to describe the focal
-system. For example, a typical one-dimensional index for vegetation data is NDVI
-(Normalized Difference Vegetation Index), which measures the extent of green
-vegetation in a given pixel and is obtained as the normalized difference between
-the red a near-infrared bands of a multi-band image.
-
+Note that in many cases, other methods can be used to derive univariate indices 
+from remote sensing data that may be more appropriate. For example, a typical 
+one-dimensional index for vegetation data is NDVI (Normalized Difference 
+Vegetation Index), which measures the extent of green vegetation in a given 
+pixel and is obtained as the normalized difference between the red a 
+near-infrared bands of a multi-band image.
 
 ## Classifying an RGB image to compute patch-based indicators
 
@@ -385,10 +517,10 @@ grid::grid.raster(img1)
 
 ```
 
-The vegetation in this image displays some patchiness, that can be characterized by `spatialwarnings`. `img1` is a raster image
-with three (red/blue/green) channels that need to be be classified into `TRUE`
-(pixel is in a vegetation patch) or `FALSE` values in order to compute patch-based
-compute indicators.
+The vegetation in this image displays some patchiness, that can be characterized by `spatialwarnings`. `img1` is a raster image (represented as an
+array in R) with three (red/blue/green) channels that need to be be classified
+into `TRUE` (pixel is in a vegetation patch) or `FALSE` values in order to
+compute patch-based compute indicators.
 
 ```{r densities, fig.width = 16, fig.height = 6}
 # Convert the image to a data.frame
@@ -457,8 +589,7 @@ ggplot(img1_tab) +
 ```
 
 Cluster 2 roughly identifies vegetation patches, but many single-pixel values
-are misclassified by the k-means algorithm. However, they most likely pertain to
-the nearest patch: we apply a smoothing filter to get rid of them.
+are misclassified by the k-means algorithm. However, they most likely pertain to the nearest patch: we apply a smoothing filter to get rid of them.
 
 ```{r filter}
 
@@ -493,21 +624,15 @@ plot_distr(psd_indic, best_only = FALSE) +
 
 ```
 
-Note that this brief demonstration uses k-means, but many classification methods
-exist, either supervised or unsupervised (Liu and Mason, 2016) and may show
-better results depending on the focal system.
-
-
-
+Note that this brief demonstration uses k-means, but many classification methods exist, either supervised or unsupervised (Liu and Mason, 2016) and may
+show better results depending on the focal system.
 
 
 ## Reducing the dimensionality of pixel data
 
 Indicators require each pixel to have a single, uni-dimensional value. One
-option is to use the values of each channel independently (e.g. using red values
-only), but these may not represent the state of the system most accurately.
-Ideally, each pixel should carry a value that defines as accurately the state of
-the system.
+option is to use the values of each channel independently (e.g. using red values only), but these may not represent very well the biological variable 
+of interest in each pixel. 
 
 Similar to classifications, supervised and unsupervised methods exist to
 summarize three-dimensional information to a single value. A simple generic
@@ -538,15 +663,14 @@ ggplot(img1_tab) +
 
 Results from PCA show that the first axis explains 98% of the variance in RGB
 value, so it summarizes very well the variations in pixel values. We can then
-apply indicators on these univariate values (we use here the example of spectral
-indicators).
+apply indicators on these univariate values (we use here the example of spectral indicators).
 
-Note that because there are some `NA` values (`r sprintf("%1.2f%%",
+Note that because there are some missing values (`r sprintf("%1.2f%%",
 round(mean(is.na(img1_tab$pca)), 4)* 100)` of all pixels) in the input image
 (the pixels where a very bright object is present), we need to interpolate them
 before computing the indicators. Note that interpolation increases the
 autocorrelation in a given matrix and indicators should be interpreted with
-caution on matrices where a large amount of pixels have been interpolated.
+caution if a large amount of pixels have been interpolated.
 
 ```{r indic}
 
@@ -580,7 +704,7 @@ We can then compute the indicators on the resulting matrix:
 ic <- spectral_sews(pca_mat,
                     sdr_low_range = c(0, .2),
                     sdr_high_range = c(.8, 1))
-ic <- indictest(ic, nperm = 499)
+ic <- indictest(ic, nulln = 499)
 
 # Display textual summary
 summary(ic)
@@ -592,9 +716,176 @@ values, this does not mean that the resulting pixel values always capture well
 the variations in the system state. Before interpreting indicators, it is
 necessary to understand well how the numerical values in the image reflect the
 state of the ecological system. The use of indices known to reflect a specific
-aspect of the system (e.g. NDVI reflecting the amount of green vegetation cover)
-may be often more informative than using a generic algorithm to collapse
+aspect of the system (e.g. NDVI reflecting the amount of green vegetation cover) may be often more informative than using a generic algorithm to collapse
 multiple channels into one.
+
+
+
+
+
+# Using advanced null models 
+
+To test the significance of indicator values, by default `spatialwarnings` will 
+take the original matrix and derive many 'null' matrices from it. A typical
+null matrix is one that has the same average value, but a completely random
+spatial structure. For example, such a matrix can be obtained by randomizing
+all cells in the original matrix. By recomputing the indicators on the null
+matrices, we get a distribution of values to which we can compare the observed
+indicator value. This way we check if the observed indicator value is consistent with the null hypothesis of no spatial structure, or if there is something significant in the landscape. 
+
+In `spatialwarnings`, the default method used to produce null matrices is to 
+reshuffle the cells randomly in the matrix (method `perm` in the arguments of 
+`indictest`, see `?indictest`). This will keep the average value of the matrix 
+(i.e. the proportion of TRUE cells when a matrix is made of `TRUE`/`FALSE` 
+values), but removes any spatial structure. It is the default because it is 
+reasonably fast. 
+
+Another method (method `intercept`) will fit an intercept-only generalized 
+linear model using `glm()` to the values of the matrix, then use this model to 
+predict null values in each cell. Let's consider the following matrix: 
+
+```{r exmat}
+indic_example <- generic_sews(serengeti[[13]])
+display_matrix(indic_example)
+```
+
+We use the 'intercept' method and retrieve a null matrix from the `indictest`
+object: 
+
+```{r exmod}
+
+test_example <- indictest(indic_example, nulln = 49, 
+                          null_method = "intercept")
+display_matrix( test_example$get_nullmat() )
+
+```
+
+This method randomizes the spatial structure, but the cover is preserved. Note 
+that this is is very similar to shuffling the position of the cells in the 
+matrix. The difference is that the `intercept` method will preserve the cover 
+*on average* (for a large number of null matrices), while the `perm` method will preserve the cover exactly. 
+
+When fitting the generalized linear model, `spatialwarnings` tries to make 
+a sensible default choice for the `glm()` family. It is crucial that this 
+argument is well-chosen, as otherwise the fitted model may be inappropriate. 
+By default, `spatialwarnings` uses a `binomial()` model 'family' (`family` 
+argument in glm) for logical matrices, and a `gaussian()` family for real-valued matrices. A warning is produced when this automatic choice is made, and 
+specifying explicitely the model family will remove the warning: 
+
+```{r model_nowarning}
+
+test_example <- indictest(indic_example, nulln = 49, 
+                          null_method = "intercept", 
+                          null_control = list(family = binomial()))
+
+```
+
+
+These two null models assume that all the spatial patterning found in a matrix 
+is related to the proximity to a possible regime shift, i.e. *without influence 
+of any external driver*. In other words, the null model assumes that the 
+probability of finding a given value in the null matrix is constant over the 
+whole matrix. This may be an unrealistic assumption for many real-world cases. 
+
+For example, let's consider a case where vegetation cannot grow in some part of 
+a landscape because of higher elevation, or the presence of a water body. In 
+this case, spatial autocorrelation increases because vegetation is clustered 
+into the remaining areas, where plants can grow. Such changes in correlation 
+will change indicator values in ways that are unrelated to regime shifts, and 
+lead to mis-interpretation. It is thus critical for correct interpretation of 
+patterns to make sure no unaccounted-for variable drives changes in indicator
+values. 
+
+There is no "one size fits all" method to take care of such confounding 
+environmental driver. Ideally, one would estimate the probability of observing a given value in a cell (e.g. vegetation cover), given the environmental
+drivers in that cell, but without the effect of the biological processes
+producing the regime shifts. This requires having detailed spatial data, i.e.
+not only the matrix with observed values, but also covariates driving these
+observed values (e.g. rainfall maps). This is not impossible to do but it is
+very much case-specific. 
+
+A possible null model of intermediate complexity, that does not need external 
+data, is assuming that any large-scale changes in values are driven by 
+environmental factors, while small-scale changes are related to biological 
+processes (and thus reflect better the changes in indicator values related to 
+regime shifts). To do so, we can estimate changes in matrix values over large 
+scales, and use those estimated probabilities to produce the null matrices. 
+
+Let's consider the previous matrix (describing the vegetation cover in
+serengeti): 
+
+```{r serengeti_example}
+display_matrix(indic_example)
+```
+
+It looks like overall, there is more vegetation in the bottom part of the matrix than in its upper part. In other words, a cell has a higher probability
+of being covered by forest when it is on the bottom side of the matrix. Such
+large-scale pattern could be related to a change in rainfall or altitude,
+rather than proximity to a regime shift. It would be good to take it into
+account to make sure it does not drive the trends in autocorrelation. 
+
+We can do so by fitting a smoothed version of the landscape over large scales, 
+using `gam()`. This model will allow the average value of a cell to change 
+depending on the position of the cell in the matrix. Here we use this null 
+model and draw a random, 'null' matrix: 
+
+```{r modsmooth}
+
+test_example <- indictest(indic_example, nulln = 99, 
+                          null_method = "smooth")
+display_matrix( test_example$get_nullmat() )
+
+```
+
+As expected, the model picks up the fact that the bottom side of the landscape 
+tends to have more forest: in those areas, the null matrix has a higher 
+probability of being covered. 
+
+Let's compare the three null models using the 'generic indicators': 
+
+```{r null_comparision}
+
+indics <- generic_sews(serengeti)
+
+control <- list(familiy = binomial())
+
+# Compute and export the values 
+all_methods <- ldply(c("perm", "intercept", "smooth"), function(method) { 
+  test <- indictest(indics, nulln = 99, 
+                    null_method = method, 
+                    null_control = control)
+  data.frame(method = method, as.data.frame(test))
+})
+
+# Display the results
+all_methods[ ,"x"] <- serengeti.rain[all_methods[ ,"matrixn"]]
+ggplot(all_methods, aes(x = x)) + 
+  geom_line(aes(y = null_mean, group = method), alpha = .2) + 
+  geom_ribbon(aes(ymin = null_qinf, ymax = null_qsup, fill = method), 
+              alpha = .8) + 
+  geom_point(aes(y = value), size = 1) + 
+  geom_line(aes(y = value)) + 
+  facet_wrap( ~ indic, scales = "free_y") + 
+  theme_minimal() + 
+  labs(x = "Rainfall (mm)", 
+       y = "Indicator value")
+
+```
+
+In the above figure, the observed indicator values are represented with the 
+black line. The null values are represented by the ribbons, with the color 
+indicating the null method used. The 'intercept' and 'perm' values give very 
+similar results. The 'smooth' method produces values that are closer to the 
+observed indicator value, i.e. it is more conservative than the shuffling or 
+intercept-only model. This is expected as the smooth method produces null 
+matrices that are closer to the original matrix. 
+
+When running analyses, it is probably worth trying these different sets of null 
+models to make up your mind about how strongly values deviate from random 
+expectations. 
+
+
+
 
 
 
@@ -605,5 +896,4 @@ Dakos, V., and F. Soler-Toscano. 2017. Measuring complexity to infer changes in
 the dynamics of ecological systems under stress. Ecological Complexity
 32:144–155.
 
-Liu and Mason, 2016. Image Processing and GIS for Remote Sensing: Techniques and
-Applications. John Wiley \& Sons, Ltd.
+Liu and Mason, 2016. Image Processing and GIS for Remote Sensing: Techniques and Applications. John Wiley \& Sons, Ltd.
