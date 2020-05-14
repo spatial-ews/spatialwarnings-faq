@@ -79,7 +79,7 @@ variance of the following matrix:
 ```{r autocorr_example, fig.width = 6, fig.height = 6}
 
 # Load the package and enable parallel processing
-# library(spatialwarnings) 
+library(spatialwarnings) 
 plan(multicore)
 
 data(serengeti) # get more information on this dataset by using ?serengeti
