@@ -7,7 +7,7 @@ r:
 
 before_install:
   - sudo apt-get update
-  - sudo apt-get install libfftw3-dev libgdal-dev
+  - sudo apt-get install libfftw3-dev libgdal-dev libgsl-dev
 
 install:
   - R -e 'install.packages("rmarkdown", repos = "https://cloud.r-project.org")'
